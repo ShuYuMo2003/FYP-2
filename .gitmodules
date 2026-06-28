@@ -1,0 +1,3 @@
+[submodule "code/world-policy-lab"]
+	path = code/world-policy-lab
+	url = https://github.com/ShuYuMo2003/world-policy-lab.git
