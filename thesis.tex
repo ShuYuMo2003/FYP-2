@@ -1,0 +1,53 @@
+\documentclass{xmum-fyp}
+
+\usepackage[english]{babel}
+\usepackage{csquotes}
+\usepackage[hidelinks]{hyperref}
+\usepackage[
+  backend=biber,
+  style=apa,
+  sorting=nyt,
+  sortcites=true
+]{biblatex}
+\DeclareLanguageMapping{english}{english-apa}
+\addbibresource{references.bib}
+
+\AtBeginBibliography{\singlespacing}
+\setlength{\bibhang}{0.5in}
+\setlength{\bibitemsep}{\baselineskip}
+
+\input{metadata}
+
+\begin{document}
+
+\makefrontcover
+\maketitlepage
+
+\input{frontmatter/declaration}
+\input{frontmatter/approval}
+\input{frontmatter/copyright}
+\input{frontmatter/acknowledgements}
+\input{frontmatter/abstract}
+
+\xmumtableofcontents
+\xmumlistoftables
+\xmumlistoffigures
+\input{frontmatter/symbols}
+
+\startmainmatter
+
+\input{chapters/chapter1-introduction}
+\input{chapters/chapter2-literature-review}
+\input{chapters/chapter3-methodology}
+\input{chapters/chapter4-results}
+\input{chapters/chapter5-discussion}
+\input{chapters/chapter6-conclusion}
+
+\xmumbackmatterchapter{REFERENCES}
+\printbibliography[heading=none]
+
+\startappendices
+\input{appendices/appendix-a}
+
+\end{document}
+
