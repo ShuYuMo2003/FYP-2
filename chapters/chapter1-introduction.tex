@@ -2,29 +2,150 @@
 
 \section{Background}
 
-This chapter introduces the research topic, the issues concerned, the aims and
-objectives of the study, the project scope, and the structure of the thesis.
-Use formal academic prose and avoid first-person references unless the
-School/Faculty explicitly permits them.
+\todo{建议篇幅：约 1,200--1,500 words，5--6 段。Chapter 1 的任务是建立问题入口，不要过早进入代码细节。新主线不再强调 heterogeneous embodiment，而是强调 video-generation pretraining 的 native output interface 如何迁移到 robot policy。
+\begin{enumerate}
+  \item P1: 从 embodied AI 开始。解释机器人 action 会改变未来 observation，因此 policy 输出接口会影响 closed-loop learning。
+  \item P2: 收窄到 robot policy learning。说明 policy 从 camera observation、language instruction、robot state 到 continuous EEF/gripper actions。
+  \item P3: 引入 pretraining/post-training interface 的类比。VLM 的 post-training 仍主要生成 language tokens，因此 pretraining 中获得的语言/视觉-语言能力比较自然地迁移。
+  \item P4: 对比 embodied/video-model policy。Video model 在 web video pretraining 中学到 dynamics and temporal continuity，但很多 robot policy 方法需要额外 action head、readout token 或 IDM。
+  \item P5: 指出 interface mismatch。模型 pretrain 学的是生成 video/pixels/latents，post-train 最终却要输出 continuous robot action；这可能削弱 video prior 的直接利用。
+  \item P6: 引出本项目。本文把 continuous EEF action 编码为 camera-grounded pixel-space trajectory，让 video model 仍然生成 future visual content，只是 future frames 中显式包含 action label，再由 decoder 读回。
+\end{enumerate}}
+
+Embodied artificial intelligence studies agents that perceive their surroundings, reason about a task, and act within a physical or simulated world. Unlike a static classifier or a language model that only produces an answer for a given input, an embodied agent is part of the environment it observes. Its actions can move objects, change contact conditions, reveal or occlude visual information, and create the next state from which the agent must continue acting. This interaction makes robot learning a closed perception-action loop: the agent observes the world, chooses an action, changes the world through that action, and then receives a new observation, as illustrated in Figure~\ref{fig:ch1-perception-action-loop}. Such coupling between perception and action has been central to embodied AI since early work emphasized intelligence as situated behaviour rather than passive representation alone \parencite{brooks1991intelligence}. For robot policies, the model output is therefore not merely a label or a token. It is an executable command, and its representation can change the learning problem: what supervision is applied, what errors appear during interaction, and which parts of a pretrained model are reused directly or only through additional modules.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.72\textwidth]{figures/action-perception.png}
+  \caption[Closed perception-action loop]{Closed perception-action loop between an agent and its environment. Source: \textcite{long2019escaping}.}
+  \label{fig:ch1-perception-action-loop}
+\end{figure}
+
+This thesis focuses on vision-based robot policy learning for manipulation. A robot policy maps the information available at the current time step, such as camera observations, language instructions, and robot proprioceptive states, into executable motor commands. In end-effector control, these commands can be represented as a short sequence of pose changes and gripper states. This short-horizon output format is commonly known as action chunking in recent imitation-learning work. It was introduced as a central idea in Action Chunking with Transformers (ACT), where the policy predicts a sequence of future actions rather than only one instantaneous command \parencite{zhao2023act}; related visuomotor policies also use temporally extended action predictions to improve smoothness and reduce the effective query frequency of the high-level model \parencite{chi2023diffusionpolicy}. At this level, the challenge is general to robot policies: the model must connect visual observations, language or task instructions, and robot state with precise continuous actions that can be executed by the controller.
+
+Robot policy learning increasingly builds on pretrained foundation models because robot data remains expensive to collect and covers only a limited range of objects, tasks, and environments. Vision-language-action models such as RT-2, OpenVLA, and the Physical Intelligence $\pi$ series adapt pretrained vision-language models for robot control, aiming to reuse semantic recognition, language grounding, and task-level reasoning learned from large visual-language corpora \parencite{brohan2023rt2,kim2024openvla,black2024pi0,black2025pi05}. Video-generation and world-model policies follow a related motivation from the temporal side: systems such as UniPi, Genie Envisioner, DreamZero, LingBot-VA, and Cosmos Policy use video or world-model pretraining to provide priors about visual dynamics, object motion, and future scene evolution \parencite{du2023unipi,liao2025genieenvisioner,ye2026dreamzero,li2026lingbotva,kim2026cosmospolicy}. These methods reflect a common premise: large-scale pretraining can supply perceptual, semantic, or temporal structure that is difficult to learn from robot demonstrations alone.
+
+Pretraining then raises an interface question: after adaptation, what target is the model asked to produce? Transfer learning often changes heads, losses, domains, or supervised targets while still reusing learned representations \parencite{pan2010survey}. At the same time, the output interface shapes which pretrained behaviours are reused directly and which behaviours pass through newly trained modules. Vision-language modelling provides a useful analogy. In models such as Flamingo and LLaVA, pretraining and instruction tuning change the data distribution and task format, but both stages still operate around language-token generation \parencite{alayrac2022flamingo,liu2023llava}. This motivates the question of whether a video-generation robot policy can keep visual generation as part of the action-learning target, rather than shifting the final supervision entirely into a separate action space.
+
+This question is especially important for video-generation-based robot policies because the pretrained model already has a native generative role: predicting visual futures. Current embodied policy methods occupy different points along this design spectrum. Vision-language-action models connect pretrained visual-language backbones to robot actions, but the final action is usually produced by an action tokenization scheme, a continuous action head, a diffusion action head, or a flow-matching action module \parencite{brohan2023rt2,kim2024openvla,black2024pi0,black2025pi05}. Video-generation or world-model policies remain closer to the visual pretraining objective because they predict future observations. UniPi, for example, formulates policy learning through text-guided video generation and then recovers actions from the generated plan \parencite{du2023unipi}. Since a robot ultimately executes motor commands rather than videos, these systems still require an inverse dynamics model, a readout module, or another decoder that converts generated visual content into continuous actions.
+
+The resulting interface gap is the starting point of this thesis. Web video pretraining can teach a model scene continuity, object motion, visual dynamics, and temporal structure, while robot control requires metric end-effector actions. When action supervision enters after video generation through an external head or a separate inverse-dynamics readout, the executable command is learned through an additional action pathway. This project studies a complementary design: expressing action information inside the generated visual output so that the model continues to solve a visual generation problem while the generated frames carry an explicit, decodable control signal.
+
+This project investigates such an interface through \emph{Optical Action Encoding}. The key idea is to encode continuous end-effector actions as camera-grounded pixel-space trajectories in the wrist-camera view. Instead of asking a video model to generate only future RGB frames and then infer actions implicitly from frame differences, the proposed framework renders an end-effector action chunk as visible keypoint tracks. These tracks are defined from robot geometry, projected into camera coordinates as \(P_{\mathrm{cam}}\), and stored as transparent trajectory layers that can be composited with the observation. The video-generation model is then trained to generate future action-labelled frames, and an action decoder converts the generated visual trajectory back into continuous end-effector and gripper commands. In this formulation, robot action prediction is brought closer to a native video-generation problem: the model still generates pixels or latents, but the pixels now contain executable intent. Figure~\ref{fig:ch1-policy-comparison} summarizes this positioning.
+
+\figureplaceholder{fig:ch1-policy-comparison}{High-level comparison of action-output paradigms}{Draw three side-by-side columns with consistent left-to-right arrows. Column A: VLA/action-head policy. Inputs are RGB observation + language + robot state, the backbone outputs action tokens or a continuous action vector through a separate action interface. Column B: video-generation/world-model policy. Inputs go into a video generator, which outputs future RGB frames; a separate IDM/readout module then converts generated frames into actions. Column C: Optical Action Encoding. Inputs and past action-labelled frames go into the video generator, which outputs future RGB frames with wrist-view pixel trajectory labels; an action decoder converts the explicit generated keypoint tracks into end-effector pose and gripper commands. Add a small note above Column C: ``action supervision stays inside generated visual output''. Include a zoom-in of the wrist view showing three projected gripper keypoints over time, with colour fading from near-term to later steps.}
+
+\todo{Figure~\ref{fig:ch1-policy-comparison} 需要画得非常教学向：老师不熟悉 VLA/world model 也能看懂。重点不是“跨本体”，而是三个 output interface 的差异：action head/vector、pure video + IDM、action-labelled video + decoder。}
 
 \section{Problem Statement}
 
-State the research problem clearly and explain why it is significant.
+\todo{建议篇幅：约 500--700 words，4 段加 research questions。新 problem statement 应该围绕 pretraining-compatible interface。
+\begin{enumerate}
+  \item P1: 写 problem 1: pretrained video models output pixels/latents, but robot control requires precise continuous actions。
+  \item P2: 写 problem 2: action head / readout token / IDM 会把 downstream supervision 移到 video model 原生生成接口之外，可能削弱 video pretraining 能力的直接迁移。
+  \item P3: 写 problem 3: closed-loop evaluation 更严格。Open-loop generated-action error 不能完全说明真实交互，因为一个错误 action 会改变后续 observation。
+  \item P4: 写 pipeline-level problem。本文需要在一个具备相机标定、视觉观测和连续动作标签的机器人演示设置中实现可复现 pipeline，覆盖 preprocessing、training、inference、evaluation 和 artifact tracking；具体实验数据集留到 Chapter 3/4 说明。
+\end{enumerate}
+
+Research questions:
+\begin{enumerate}
+  \item RQ1: How can continuous end-effector actions be encoded as camera-grounded pixel-space trajectories compatible with video-generation training?
+  \item RQ2: Can a video-generation model be adapted into a robot policy by generating action-labelled future frames?
+  \item RQ3: What are the open-loop and closed-loop strengths and limitations of this action-in-pixel world-model policy?
+\end{enumerate}}
+
+This thesis addresses the representation problem that arises when a pretrained video-generation model is adapted for robot control. A video model is pretrained to generate visual content, usually pixels or latent representations of pixels. A robot controller, in contrast, needs continuous commands such as end-effector displacement, rotation, and gripper state. The difference between these two output spaces affects how directly the downstream policy can use the visual dynamics learned during pretraining. The design question is therefore whether robot actions can be represented in a form that remains close to the model's generative output while still being decodable into metric control commands.
+
+Existing robot policy designs bridge this gap in different ways. VLA-style methods attach action heads, action tokenizers, or action-generation modules to visual-language backbones \parencite{brohan2023rt2,kim2024openvla,black2024pi0,black2025pi05}. World-model methods generate future observations and then use an inverse dynamics model or representation readout to recover actions. These approaches define useful contrastive interfaces for this thesis: in one case, action supervision is attached to a visual-language backbone; in the other, action is recovered after visual prediction. In the world-model case, a visually plausible future frame can still be ambiguous as an action command, because multiple end-effector motions may lead to similar image changes and small geometric errors in the generated trajectory may become larger control errors after decoding.
+
+The representation problem becomes sharper in closed-loop evaluation. Open-loop metrics, such as action prediction error on held-out demonstrations, are useful diagnostics, but classic imitation-learning work shows that errors measured on a fixed dataset do not fully capture the distribution shift that appears when a learned policy acts on its own states \parencite{ross2011reduction}. In open-loop evaluation, the model is judged against a fixed recorded trajectory. In closed-loop evaluation, each predicted action changes the next observation, and the model must continue from its own consequences. For an action-labelled video policy, visual plausibility and execution quality can diverge when the generated action label is misaligned with the camera view, depth cues are inaccurate, the decoder is sensitive to generation artifacts, or errors accumulate over multiple control blocks.
+
+The practical problem is to evaluate this representation as a reproducible policy pipeline, from geometric construction to generated actions. The thesis therefore formulates Optical Action Encoding for calibrated robot manipulation demonstrations that contain visual observations, language or task conditioning, end-effector states, and continuous action labels. It specifies how raw demonstrations are converted into action-labelled frames, how camera geometry is preserved, how generated outputs are decoded, how training artifacts are tracked, and how the resulting policy is evaluated in open-loop and closed-loop settings. The concrete experimental setting used to validate the framework is introduced later in the methodology and results chapters. The research questions are:
+
+\begin{enumerate}
+  \item How can continuous end-effector actions be encoded as camera-grounded pixel-space trajectories compatible with video-generation training?
+  \item Can a video-generation model be adapted into a robot policy by generating action-labelled future frames?
+  \item What are the open-loop and closed-loop strengths and limitations of this action-in-pixel world-model policy?
+\end{enumerate}
+
+\tableplaceholder{tab:ch1-rq-map}{Research questions and thesis evidence}{Create a 4-column table: research question, corresponding thesis sections, implementation component, and expected evidence. Row 1 should map RQ1 to the visual action codec, camera projection into \(P_{\mathrm{cam}}\), and decoder geometry checks. Row 2 should map RQ2 to robot demonstration preprocessing, decoder-image export, DiT latent export, WAN teacher-forcing training, and generated action-labelled frames. Row 3 should map RQ3 to decoder validation error, open-loop generated-action metrics, closed-loop simulation success rates, CFG/guidance analysis, and qualitative failure cases.}
+
+\todo{Table 1.1 后期可以在写完 Chapter 3--4 后再回填具体 section 编号和 metric 名称。注意 RQ2 的证据应强调 ``video model generates action-labelled future frames''，不是 heterogeneous scaling。}
 
 \section{Aims and Objectives}
 
-The aim of this project is to investigate the research problem defined above.
-The objectives are:
+\todo{建议篇幅：约 350--450 words，3 段。
+\begin{enumerate}
+  \item P1: 用一句话写 aim: This project aims to design, implement, and evaluate a pretraining-compatible action interface that adapts a video-generation model into a robot policy by representing actions as camera-grounded pixel-space trajectories.
+  \item P2: 写 5 个 objectives，分别对应 literature review、visual action codec、artifactized data pipeline、action decoder、WAN/evaluation。
+  \item P3: 说明这些 objectives 如何回答 RQ1--RQ3，并自然收束到本文的 action-in-pixel world-model policy。
+\end{enumerate}}
+
+The aim of this project is to design, implement, and evaluate a pretraining-compatible action interface that adapts a video-generation model into a robot policy by representing continuous robot actions as camera-grounded pixel-space trajectories. The representational question is whether end-effector motion can be expressed as an explicit visual signal inside the model's generated frames. The systems question is whether this representation can support an end-to-end policy pipeline from data preprocessing to evaluation.
+
+The specific objectives are:
 
 \begin{enumerate}
-  \item To review existing work related to the topic.
-  \item To design and implement the proposed approach.
-  \item To evaluate the results using appropriate methods.
+  \item To review embodied AI, robot policy learning, vision-language-action models, video-generation world models, and output-interface choices for robot action prediction.
+  \item To design a visual action codec that projects end-effector action chunks into wrist-camera pixel space as keypoint trajectories.
+  \item To construct an artifactized data pipeline for robot demonstration preprocessing, decoder-image export, DiT latent export, and WAN teacher-forcing training.
+  \item To train and validate an action decoder that recovers continuous robot actions from action-labelled visual frames generated or reconstructed by the pipeline.
+  \item To evaluate the resulting world-model policy using decoder metrics, open-loop generated-action metrics, closed-loop simulation rollouts, and qualitative analysis.
 \end{enumerate}
+
+These objectives correspond directly to the research questions. The visual action codec answers RQ1 by defining the mapping from robot geometry to pixel trajectories and back to continuous actions. The data and WAN training pipeline answers RQ2 by showing how a video-generation model can be fine-tuned to generate future frames that carry explicit action labels. The evaluation objective answers RQ3 by comparing behaviour under controlled open-loop settings with behaviour during closed-loop interaction. Together, these objectives frame the project as a concrete action-in-pixel world-model policy and characterize the conditions under which the interface supports reliable action decoding, preserves useful video-generation behaviour, or exposes failure modes.
+
+\todo{写完 Chapter 4 后，根据实际实验设置同步更新 Objectives 第 5 点和 Contributions 中的 evaluation wording。}
+
+\section{Project Scope}
+
+\todo{建议篇幅：约 400--550 words，4 段。Scope 要写得主动、诚实。主 scope 是 calibrated robot manipulation demonstrations + WAN action-in-pixel policy，不把具体数据集写成方法限制。
+\begin{enumerate}
+  \item P1: 写 main methodological scope: calibrated camera observations, wrist-view action trajectory rendering, WAN21 1.3B teacher-forcing, action decoder, open-loop and closed-loop evaluation。
+  \item P2: 写 experimental instantiation 会在 Chapter 3/4 报告；这里强调 representation/pipeline 与具体实验设置之间的关系。
+  \item P3: 写 evaluation boundary: 本文重点放在 visual action codec、WAN training path、decoder validation、open-loop evaluation，以及可完成的 closed-loop rollout。
+  \item P4: 写 why this scope follows from the research question: 要验证 action-in-pixel interface，需要覆盖几何编码、生成训练、动作解码和评估闭环，而不是只报告一个孤立模型结果。
+\end{enumerate}}
+
+The methodological scope of this thesis is a calibrated vision-based manipulation setting in which camera observations, task conditioning, end-effector states, gripper states, and action labels are available. The action is represented through a robot-mounted or task-relevant camera view, where a short end-effector action chunk is projected into the image as a set of keypoint trajectories. The implementation uses the \texttt{world-policy-lab} codebase, whose relevant components include a visual action codec, robot-demonstration preprocessing, decoder-image export, DiT latent export, action decoder training, WAN teacher-forcing training, a policy server, and evaluation utilities. The experiments use the Wan2.1 1.3B teacher-forcing pipeline as the video-generation policy backbone.
+
+The codebase provides a broader engineering context for the thesis through dataset hooks, artifact lineage, distributed training support, and policy inference utilities. Chapter 3 focuses on the components that directly support the Optical Action Encoding pipeline: visual action construction, data preprocessing, latent export, action decoding, WAN training, inference, and evaluation. This organization keeps the implementation discussion aligned with the representation question instead of treating the repository as a collection of unrelated tools.
+
+The evaluation scope is organized around the stages that are most directly tied to the representation: the rendered visual action label, the geometry contract, the decoder training target, the WAN training artifact, the open-loop output, and the closed-loop rollout behaviour. This keeps the experimental evidence close to the main question of the thesis, namely whether action information can be placed inside generated visual content and then decoded back into executable commands.
+
+This scope follows from the representation question itself. Evaluating an action-in-pixel interface requires evidence at several levels: the visual label should be geometrically meaningful, the generated frame should preserve a decodable action signal, the decoder should recover continuous commands, and rollout analysis should reveal how representation errors affect control. The thesis is therefore structured around this evidence chain from geometry to generation, decoding, and policy behaviour.
+
+\tableplaceholder{tab:ch1-scope}{Project implementation focus}{Create a 4-column table: component, role in thesis, implementation or evidence, and where discussed. Suggested rows: calibrated robot demonstrations; camera-grounded action trajectory rendering; visual action codec; action decoder training; WAN teacher-forcing training; open-loop evaluation; closed-loop simulation rollouts; artifact tracking. Keep the table readable for a non-specialist examiner.}
+
+\todo{Table 1.2 很重要：它主动告诉 examiner 本文的 implementation focus 是什么。表格应突出 visual action codec、WAN training path、decoder、evaluation 和 artifact tracking。}
+
+\section{Contributions}
+
+\todo{建议篇幅：约 350--500 words，5 段。每段写一个 contribution 或收束句，保持具体、可由 Chapter 3--4 支撑。
+\begin{enumerate}
+  \item P1: 总起句，说明本文贡献在于 pretraining-compatible action interface、implementation pipeline、evaluation protocol 和 analysis。
+  \item P2: Contribution 1: a camera-grounded pixel-space action encoding compatible with video-generation outputs。
+  \item P3: Contribution 2: an end-to-end WAN-based world-model policy pipeline using action-labelled frames。
+  \item P4: Contribution 3: an action decoder and evaluation framework that converts generated visual action labels into executable continuous actions and measures open/closed-loop behaviour。
+  \item P5: Contribution 4: analysis of generated-frame gap, decoder robustness, and limitations of adapting video generation models into robot policies。
+\end{enumerate}}
+
+The contributions of this thesis are organized around action interface design, implementation, evaluation, and analysis. The work contributes a concrete way to move robot action prediction closer to the native output interface of a video-generation model.
+
+First, the thesis introduces and implements a camera-grounded pixel-space action encoding for end-effector control. The codec converts a short robot action chunk into projected wrist-camera keypoint trajectories and stores the result as an RGBA trajectory layer aligned with the observation. This makes the action an explicit visual signal that a video model can generate, rather than only a hidden vector supervised outside the generated frame.
+
+Second, the thesis provides an end-to-end WAN-based world-model policy pipeline using action-labelled frames. The pipeline covers raw data preprocessing, observation and trajectory-layer construction, decoder-image export, DiT latent export, action decoder training, WAN teacher-forcing training, inference, and artifact tracking. The design tests whether a pretrained video-generation model can be adapted to a robot policy while still generating visual content as its primary output.
+
+Third, the thesis trains and evaluates an action decoder that converts generated visual action labels back into executable continuous actions. Decoder validation measures whether action-labelled frames can be translated into end-effector motion. Open-loop evaluation measures the generated action-labelled future against held-out demonstrations. Closed-loop simulation rollouts measure whether the generated and decoded actions can drive a policy through tasks.
+
+Finally, the thesis analyzes the practical gap between visually plausible generated action labels and reliable robot execution. This includes discussion of decoder robustness, action-label noise, teacher-forced versus closed-loop distribution mismatch, guidance-scale sensitivity, and qualitative failure cases. This analysis treats pixel-space action representation as an inspectable interface for testing how video-generation models can be adapted into embodied policies.
+
+\todo{Contributions 后期要和 Chapter 4 的实际结果对齐。根据最终实验结果，统一更新 implementation、evaluation 和 analysis 的表述。}
 
 \section{Thesis Organization}
 
-Chapter 2 reviews the relevant literature. Chapter 3 describes the research
-methodology. Chapter 4 presents the results. Chapter 5 discusses the findings.
-Chapter 6 concludes the thesis and recommends future work.
+\todo{建议篇幅：约 150--200 words，1 段。
 
+P1: 用一个段落依次说明 Chapter 2 reviews foundational and related work; Chapter 3 presents the methodology and implementation; Chapter 4 reports experimental results; Chapter 5 interprets the findings, compares them with prior studies, and discusses limitations; Chapter 6 concludes the thesis and suggests future work.}
+
+The rest of the thesis is organized as follows. Chapter 2 reviews the foundational and related work needed to understand the project, including embodied AI, robot policy learning, transformers and diffusion-style generation, pretraining-compatible output interfaces, vision-language-action models, video-generation world models, and visual action representations. Chapter 3 presents the methodology and implementation of Optical Action Encoding, including the visual action codec, data pipeline, action decoder, WAN training setup, inference protocol, and evaluation design. Chapter 4 reports experimental results from decoder validation, open-loop evaluation, closed-loop simulation, and qualitative case studies. Chapter 5 interprets the findings, compares the framework with VLA action heads and world-model IDM/readout methods, and discusses limitations such as decoder robustness and distribution shift. Chapter 6 concludes the thesis and outlines future work toward stronger closed-loop performance, stronger baselines, and broader extensions beyond the current experimental setting.

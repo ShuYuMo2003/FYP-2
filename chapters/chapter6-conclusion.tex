@@ -2,10 +2,23 @@
 
 \section{Conclusion}
 
-Summarize the major findings of the project and relate them to the original
-aims and objectives.
+\todo{建议篇幅：Chapter 6 总体 800--1,100 words。Conclusion 本节 500--700 words，4 段。
+\begin{enumerate}
+  \item P1: 回到 problem statement。总结本文研究了如何把 robot end-effector actions 表示为 camera-grounded pixel-space trajectories，并用于 video-generation robot policy。
+  \item P2: 对应 objectives 总结完成工作。依次提 literature review, pretraining-compatible action interface, visual action codec, artifactized data pipeline, action decoder, WAN teacher-forcing training, evaluation protocol。
+  \item P3: 总结主要 findings。根据最终实验填入：pipeline 是否端到端可行、decoder 表现、WAN 是否能生成 action-labelled future frames、closed-loop success/failure、qualitative interpretability。
+  \item P4: 总结意义和边界。强调本文不是宣称完整解决 general robot policy，而是提供一个可解释、可复现的 action-in-pixel world-model policy framework and analysis。
+\end{enumerate}}
 
 \section{Recommendation for Future Work}
 
-Suggest possible extensions, improvements, or future research directions.
+\todo{建议篇幅：350--500 words，5 段或 5 点。Future work 的优先级要服务新主线：先补强 baselines 和 closed-loop robustness，再扩展到 real robot / heterogeneous setting。
+\begin{enumerate}
+  \item P1: Add stronger output-interface baselines。补充 direct action head、WAM plus IDM/readout、same-backbone IDM 等对照，以验证优势是否来自 action-in-pixel interface。
+  \item P2: Improve closed-loop robustness。系统研究 CFG selection、on-policy generated data、sim-context rollout、consistency filtering and action decoder finetuning。
+  \item P3: Conduct real robot evaluation。在真实机器人平台上验证 closed-loop task success。
+  \item P4: Scale the video-generation policy。尝试更大 WAN/video backbone、更多 robot demonstration data 和更系统的 checkpoint sweep，检验 video pretraining 能力是否继续转化为 policy improvement。
+  \item P5: Future extension to heterogeneous/action-free data。把更多机器人平台或人类视频放入同一 visual action representation，但明确这是后续工作，不是本 thesis 的主要实验证明。
+\end{enumerate}}
 
+\tableplaceholder{tab:ch6-future-work}{Recommended future work}{Columns: future direction, expected benefit, required resources, risk, priority.}

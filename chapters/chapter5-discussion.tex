@@ -2,15 +2,98 @@
 
 \section{Interpretation of Results}
 
-This chapter interprets the results presented in Chapter 4. Compare and
-contrast the findings with previous studies discussed in the literature review.
+\todo{建议篇幅：Chapter 5 总体 2,200--3,000 words。本章解释 Chapter 4，不重复表格。Interpretation 本节 500--700 words，5 段。
+\begin{enumerate}
+  \item P1: 总结 data artifacts 的意义。说明 preprocessing, latent export, decoder images, checkpoints and evaluation reports 证明 pipeline 可复现。
+  \item P2: 解释 decoder metrics。若 decoder 表现好，说明 visual action label 可被读回 continuous actions；若误差较大，说明 pixel-space label 到 action space 仍有瓶颈。
+  \item P3: 解释 open-loop results。说明 WAN 是否能生成 action-labelled future frames，以及 generated trajectory 是否保持 temporal consistency。
+  \item P4: 解释 closed-loop results。强调 closed-loop 是更严格测试；即使 open-loop 可行，闭环仍可能受 distribution shift and error accumulation 影响。
+  \item P5: Compare and contrast with Chapter 2。将结果与 VLA action head, world model plus IDM/readout, visual action representation 等方向逐项对照，说明本文支持了哪些观点、暴露了哪些限制。
+\end{enumerate}}
 
-\section{Implications}
+\tableplaceholder{tab:ch5-main-findings}{Main findings, evidence, and interpretation}{Columns: finding, supporting evidence, comparison with prior work, strength of evidence, limitation. Include one row explicitly about preserving the video-generation output interface.}
 
-Discuss the practical, theoretical, or technical implications of the findings.
+\section{Why Pixel-Space Action Helps Preserve Video Pretraining}
+
+\todo{建议篇幅：600--800 words，4--5 段。这是 Discussion 的核心新小节。
+\begin{enumerate}
+  \item P1: 从 VLM 类比开始。Pretraining 能力更容易迁移到保留原生 output interface 的 post-training 任务。
+  \item P2: 分析 video model。Web video pretraining 学到 scene dynamics, object motion, temporal continuity；如果 post-training 输出变成 action head/vector，这些能力需要经过额外接口才能影响 action。
+  \item P3: 解释 Optical Action Encoding。WAN 仍然生成 video latents/frames，action supervision 通过 action-labelled pixels 进入同一个生成目标。
+  \item P4: 讨论这带来的好处：保留 video-generation prior、让 action label 可视化、降低 pure IDM 从 frame difference 反推动作的歧义。
+  \item P5: 控制边界：action decoder 仍然是额外模块，所以本文不是“无 decoder”，而是“让 video model 显式生成可读 action signal”。
+\end{enumerate}}
+
+\figureplaceholder{fig:ch5-pretrain-interface}{Pretraining-compatible action interface for video-generation policies}{画 VLM 类比和本文方法的简化图：pretrain output -> post-train output。VLM 是 language tokens -> language tokens；ours 是 video frames/latents -> action-labelled video frames/latents -> decoder。对比 action head/IDM 分支。}
+
+\tableplaceholder{tab:ch5-interface-implications}{Practical implications of preserving the video-generation interface}{Columns: implication, expected benefit, evidence in this thesis, remaining risk. Include video prior reuse, visual interpretability, decoder requirement, closed-loop robustness.}
+
+\section{Action Decoder Robustness and Generated-Frame Gap}
+
+\todo{建议篇幅：500--750 words，4 段。
+\begin{enumerate}
+  \item P1: 解释 decoder 是关键瓶颈。Training frames, noisy-label frames, WAN generated frames and simulation frames 的分布不完全一致。
+  \item P2: 讨论 noisy trajectory layer。它的目的不是制造更好看的图，而是让 decoder 在 visual label 有偏时仍结合 RGB and geometry cues。
+  \item P3: 讨论 generated-frame gap。WAN 生成帧可能在视觉上合理，但 keypoint depth、trajectory curvature or object contact relationship 可能偏离可执行动作。
+  \item P4: 讨论 rollout finetuning or generated-frame decoder finetuning 的风险。Open-loop error 可能改善，但 closed-loop 不一定改善，因为 closed-loop context 会随 action 改变。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch5-generated-frame-gap}{Distribution gap around the action decoder}{画四类输入分布：clean demonstration frames, noisy training frames, WAN generated frames, closed-loop simulation frames。箭头指向 action decoder，标出可能 gap。}
+
+\tableplaceholder{tab:ch5-robustness-mechanisms}{Decoder robustness mechanisms and expected failure modes}{Columns: mechanism, intended effect, evidence to inspect, possible failure. Include noisy trajectory training, geometry losses, generated-frame finetuning, qualitative preview.}
+
+\section{Open-Loop and Closed-Loop Gap}
+
+\todo{建议篇幅：450--650 words，4 段。
+\begin{enumerate}
+  \item P1: 解释 open-loop 为什么必要。它可以隔离 generation/decoding errors，并在不运行 simulation 的情况下快速比较 checkpoints。
+  \item P2: 解释 open-loop 为什么不充分。Closed-loop 中每个 action 会改变 future observation，error accumulation and exposure bias 会放大微小误差。
+  \item P3: 分析具体来源。Domain mismatch, CFG guidance, temporal alignment, camera calibration, object contact dynamics and decoder error 都可能造成 open-loop/closed-loop mismatch。
+  \item P4: 说明本文如何应对。Block protocol, policy server, guidance sweep, qualitative failure inspection, and per-task success logging 让 mismatch 可诊断。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch5-open-closed-gap}{Why open-loop accuracy does not guarantee closed-loop success}{左侧画 fixed dataset evaluation；右侧画 closed-loop feedback，每个 action 改变 next observation。标出 error accumulation。}
+
+\tableplaceholder{tab:ch5-open-closed-diagnostics}{Diagnostic evidence for open-loop and closed-loop mismatch}{Columns: possible cause, open-loop evidence, closed-loop evidence, diagnostic figure/table, mitigation.}
+
+\section{Comparison with Previous Studies}
+
+\todo{建议篇幅：450--650 words，4 段。这个独立小节直接满足 guideline 对 Discussion 的要求。
+\begin{enumerate}
+  \item P1: 对比 VLA action-head methods。本文不把 action 作为独立 head/token，而是生成 visual action label；优势是更贴近 video-generation interface and more interpretable，代价是需要 decoder。
+  \item P2: 对比 world model plus IDM/readout。本文仍需要 action decoder，但 decoder 读取的是显式 action-labeled pixels，而不是从纯未来帧隐式推断 action。
+  \item P3: 对比 action image/heatmap/trajectory methods。本文与这些工作共享 action-as-visual-signal 思路，但更强调 wrist-camera grounding and WAN-generated future frames。
+  \item P4: 对比 heterogeneous/cross-embodiment ambitions。本文只把它作为 future extension，没有完整证明 heterogeneous co-training；这一点要诚实写。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch5-prior-work-comparison}{Comparison with prior method families discussed in Chapter 2}{Columns: method family, shared idea, difference in this thesis, evidence, remaining limitation. Rows: VLA action heads, WAM/IDM, action image or heatmap, visual trajectory policy, future heterogeneous policy learning.}
+
+\section{Engineering and Reproducibility Implications}
+
+\todo{建议篇幅：350--500 words，3 段。
+\begin{enumerate}
+  \item P1: 说明工程贡献不是简单“能跑”，而是让 preprocessing, latent export, training and evaluation 都 artifact 化。
+  \item P2: 解释 commit-pinned tasks, manifests, status files and lineage dashboard 如何提高实验可信度。
+  \item P3: 控制边界。只讨论对 FYP reproducibility 有意义的设计，不展开 ACP/IB 低层故障排查。
+\end{enumerate}}
+
+\figureplaceholder{fig:ch5-repro-workflow}{Reproducibility workflow from code commit to final evaluation report}{画 commit -> task config -> artifact manifest -> checkpoint -> eval report -> thesis table/figure。}
 
 \section{Limitations}
 
-Describe the limitations of the project and how they affect interpretation of
-the results.
+\todo{建议篇幅：450--650 words，5 段或分点。态度要诚实。
+\begin{enumerate}
+  \item P1: Dataset limitation。主结果主要基于一个具体 robot manipulation experimental setting，更多平台和数据源仍是 future work。
+  \item P2: Evaluation limitation。Closed-loop tasks and runs 可能有限，real robot evaluation 不一定完成。
+  \item P3: Baseline limitation。完整 VLA/action-head、WAM/IDM、same-backbone readout 对照需要更多训练资源，FYP 中可能只能做 partial or conceptual comparison。
+  \item P4: Technical limitation。Codec 依赖 camera calibration；generated visual labels 可能有 depth/trajectory drift；decoder error 会影响 control。
+  \item P5: Compute limitation。WAN training/eval 依赖 GPU and ACP resources，复现实验成本较高。
+\end{enumerate}}
 
+\tableplaceholder{tab:ch5-limitations}{Limitations and possible mitigations}{Columns: limitation, impact on claim, mitigation in current thesis, future work.}
+
+\section{Summary}
+
+\todo{建议篇幅：150--250 words，1 段。
+
+P1: 收束本章：pixel-space action representation 的主要价值在于 preserving video-generation interface, geometry grounding and interpretability；当前结果支持 pipeline feasibility，但 generated-frame gap and closed-loop robustness 仍是主要挑战。最后一句引出 Chapter 6 的 conclusion and future work.}

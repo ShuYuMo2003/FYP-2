@@ -2,6 +2,8 @@
 
 \usepackage[english]{babel}
 \usepackage{csquotes}
+\usepackage{xcolor}
+\usepackage{xeCJK}
 \usepackage[hidelinks]{hyperref}
 \usepackage[
   backend=biber,
@@ -11,6 +13,78 @@
 ]{biblatex}
 \DeclareLanguageMapping{english}{english-apa}
 \addbibresource{references.bib}
+
+\newcommand{\xmumsetcjkfont}[1]{%
+  \setCJKmainfont{#1}%
+  \setCJKsansfont{#1}%
+  \setCJKmonofont{#1}%
+}
+\IfFontExistsTF{Microsoft YaHei}
+  {\xmumsetcjkfont{Microsoft YaHei}}
+  {\IfFontExistsTF{SimSun}
+    {\xmumsetcjkfont{SimSun}}
+    {\IfFontExistsTF{Noto Serif CJK SC}
+      {\xmumsetcjkfont{Noto Serif CJK SC}}
+      {\IfFontExistsTF{FandolSong-Regular}
+        {\xmumsetcjkfont{FandolSong-Regular}}
+        {}}}}
+\definecolor{todocolor}{HTML}{CC00CC}
+\long\def\todo#1{%
+  \par\begingroup\sloppy\color{todocolor}#1\par\endgroup
+}
+\newcommand{\figureplaceholder}[3]{%
+  \begin{figure}[htbp]
+    \centering
+    \begingroup
+    \setlength{\fboxsep}{10pt}%
+    \fbox{%
+      \begin{minipage}[c][0.22\textheight][c]{0.86\textwidth}
+        \centering
+        \color{todocolor}\small
+        \textbf{Figure placeholder}\\[0.75\baselineskip]
+        #3
+      \end{minipage}%
+    }%
+    \endgroup
+    \caption{#2}
+    \label{#1}
+  \end{figure}
+}
+\newcommand{\widefigureplaceholder}[3]{%
+  \begin{figure}[htbp]
+    \centering
+    \begingroup
+    \setlength{\fboxsep}{10pt}%
+    \fbox{%
+      \begin{minipage}[c][0.30\textheight][c]{0.90\textwidth}
+        \centering
+        \color{todocolor}\small
+        \textbf{Figure placeholder}\\[0.75\baselineskip]
+        #3
+      \end{minipage}%
+    }%
+    \endgroup
+    \caption{#2}
+    \label{#1}
+  \end{figure}
+}
+\newcommand{\tableplaceholder}[3]{%
+  \begin{table}[htbp]
+    \centering
+    \caption{#2}
+    \label{#1}
+    \begingroup
+    \setlength{\fboxsep}{10pt}%
+    \fbox{%
+      \begin{minipage}{0.88\textwidth}
+        \color{todocolor}\small
+        \textbf{Table placeholder}\\[0.5\baselineskip]
+        #3
+      \end{minipage}%
+    }%
+    \endgroup
+  \end{table}
+}
 
 \AtBeginBibliography{\singlespacing}
 \setlength{\bibhang}{0.5in}
@@ -50,4 +124,3 @@
 \input{appendices/appendix-a}
 
 \end{document}
-

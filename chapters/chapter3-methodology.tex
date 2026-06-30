@@ -2,17 +2,146 @@
 
 \section{Research Design}
 
-This chapter describes and explains the materials, methods, and procedures used
-in the study. Include the research questions, system design, data collection
-methods, research instruments, and evaluation procedures where applicable.
+\todo{建议篇幅：Chapter 3 总体 5,400--6,600 words。本章是 thesis 的技术核心，需要写得比 conference paper method 更细。Research Design 本节 600--800 words，4 段。
+\begin{enumerate}
+  \item P1: 说明研究类型是 design-and-evaluate style FYP。本文不是纯理论证明，而是设计一个可运行 robot policy pipeline 并用实验验证。
+  \item P2: 对应 Chapter 1 的 RQ。RQ1 对应 visual action codec；RQ2 对应 pretraining-compatible WAN training and inference pipeline；RQ3 对应 open-loop and closed-loop evaluation。
+  \item P3: 解释为什么 methodology 必须包含实现细节。Camera geometry、output-interface design、data contracts、artifact lineage、training protocol 和 evaluation protocol 都会影响实验可信度。
+  \item P4: 给出本章结构预告：system overview, dataset, visual codec, artifacts, decoder training, WAN training, inference/evaluation, reproducibility。
+\end{enumerate}}
 
-\section{Implementation Method}
+\tableplaceholder{tab:ch3-rq-method-map}{Research questions mapped to methodology components}{Columns: research question, methodology section, implementation component, evaluation evidence. Rows: RQ1 visual codec, RQ2 action-labelled WAN generation, RQ3 open-loop and closed-loop evaluation.}
 
-Describe the implementation environment, tools, datasets, algorithms, and
-experimental setup.
+\section{System Overview}
 
-\section{Evaluation Method}
+\todo{建议篇幅：700--900 words，5 段。先给全局图，再进入组件。
+\begin{enumerate}
+  \item P1: 总体 pipeline: raw robot dataset -> unified frame dataset -> decoder-image dataset and DiT latent dataset -> action decoder training and WAN teacher-forcing training -> open-loop and closed-loop evaluation.
+  \item P2: 解释两个核心模型。WAN video-generation policy 负责生成 future action-labeled frames；action decoder 负责从 generated frames 中恢复 continuous EEF actions。
+  \item P3: 解释 visual action representation 的位置。动作不是单独 action head label，而是被渲染进 wrist-view pixel space，成为 video model 原生 video/latent generation objective 的一部分。
+  \item P4: 解释 artifactized design。每个长任务产生独立 artifact，带 config、manifest、status、preview、code snapshot，方便复现。
+  \item P5: 简述 codebase 模块和本章后续对应关系：\texttt{action\_codec}, \texttt{data.preprocessing}, \texttt{data.latent\_encoding}, \texttt{action\_decoder}, \texttt{wan}, \texttt{runtime}.
+\end{enumerate}}
 
-Explain how the project outcomes are evaluated and why the selected metrics or
-criteria are appropriate.
+\widefigureplaceholder{fig:ch3-full-pipeline}{Full system pipeline for pixel-space action policy training and evaluation}{画主 pipeline：raw robot demonstrations -> frame dataset -> decoder images and DiT latents -> action decoder checkpoint and WAN checkpoint -> open-loop eval -> policy server -> closed-loop simulation eval。图中标出 WAN 只生成 action-labelled video latents/frames，没有额外 action head。}
 
+\widefigureplaceholder{fig:ch3-artifact-lineage}{Artifact lineage from preprocessing to evaluation}{画 artifact DAG：frame dataset, decoder images, DiT latents, decoder checkpoint, WAN checkpoint, open-loop reports, rollout datasets, closed-loop reports。标出每个 artifact 带 config/status/manifest。}
+
+\tableplaceholder{tab:ch3-code-modules}{Code modules and responsibilities}{Columns: module, responsibility, main data in, main data out, related thesis section. Include action codec, preprocessing, latent encoding, decoder images, action decoder, WAN, runtime/evaluator. Add a short note for \texttt{wan}: generates visual latent/frame targets rather than direct action vectors.}
+
+\section{Dataset and Input Representation}
+
+\todo{建议篇幅：750--950 words，5 段。
+\begin{enumerate}
+  \item P1: 写 DROID 的角色。本 FYP 主要验证 DROID/Franka setting，因为它包含 robot demonstrations、language instruction、camera views、EEF pose 和 gripper state。
+  \item P2: 写 view layout。当前主要使用 exterior head view 加 wrist view，head view 提供全局上下文，wrist view 提供 gripper-relative local geometry。
+  \item P3: 写 action/state fields。说明 EEF pose、rotation、gripper width/state、camera intrinsics/extrinsics 如何用于 action projection 和 decoder supervision。
+  \item P4: 写 sample chunking。Episode 被切成 frame-level training samples；每个 policy frame 对应 short-horizon action chunk；无效 horizon 或 projection failure 需要过滤或标记。
+  \item P5: 写 language instruction formatting。任务文本被整理为 video description and robot instruction，使 video-generation model 可用语言条件生成 future frames。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch3-dataset-fields}{Dataset fields used by the proposed pipeline}{Columns: field group, examples, source, used by. Include RGB views, language instruction, EEF pose, gripper state, camera intrinsics, camera extrinsics, episode metadata.}
+
+\tableplaceholder{tab:ch3-preprocess-config}{Preprocessing configuration to report}{Columns: parameter, current value, purpose. Include output views, image size, chunk horizon, encoding direction, trajectory layer, noisy trajectory flag, keypoint radius/depth settings.}
+
+\figureplaceholder{fig:ch3-stacked-frame}{Example stacked observation and action-labeled frame}{用占位图展示 head view, wrist view, trajectory overlay, optional noisy trajectory overlay。后面替换成真实 preprocessing preview。}
+
+\section{Camera-Grounded Visual Action Codec}
+
+\todo{建议篇幅：1,100--1,400 words，8 段。这个小节必须写到本科老师能跟上。
+\begin{enumerate}
+  \item P1: 解释 action chunk。每个 policy frame 关联一段 short-horizon future EEF actions，而不是单个 instantaneous command。
+  \item P2: 解释 relative EEF representation。把未来 EEF poses 表达在 anchor pose 或 local frame 下，降低对全局坐标的依赖。
+  \item P3: 解释 keypoints。用 gripper left tip、right tip 和 third point 表示 gripper pose/orientation；third point 帮助恢复姿态和深度。
+  \item P4: 用数学语言解释 camera projection。定义 gripper keypoints $\mathbf{x}_{t,k}^{robot}$，通过 extrinsics 转成 $\mathbf{x}_{t,k}^{cam}$，再用 $\pi(\mathbf{K}\mathbf{x}_{t,k}^{cam})$ 投影到 pixel coordinate $\mathbf{u}_{t,k}$。
+  \item P5: 用数学语言解释 visual trajectory layer。定义 trajectory layer $L_t$ 是所有 projected keypoints over horizon 的渲染结果；颜色、半径、alpha、outline 和 depth/radius cue 可以作为 $L_t$ 的 encoding design，而不是单独画图。
+  \item P6: 解释 observation-action coupling。明确每个 observation frame 对应哪个 action chunk，特别是 backward encoding 如何把当前生成帧和需要执行/解码的 action block 对齐。
+  \item P7: 解释 decoding target。Action decoder 预测 keypoint trajectories，再通过几何 fitting 恢复 EEF pose and gripper command。
+  \item P8: 写 safeguards。包括 projection validity, geometry round-trip check, camera calibration consistency, and failure cases to inspect。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch3-observation-action-alignment}{Observation-action coupling and temporal alignment}{合并原 Figure 3.5 和 3.7：画时间线，包含 observation frames、policy frames、dense control states/actions、WAN latent 4-frame cadence、bootstrap frame、decoded action block。重点标出每个 observation/action-labeled frame 到底耦合哪一段 action chunk，以及 backward encoding 下当前帧读取的是哪一个 action block。}
+
+\tableplaceholder{tab:ch3-codec-parameters}{Visual codec parameters and their purposes}{Columns: parameter, meaning, expected effect, risk if misconfigured. Include keypoints, radius range, depth scaling, alpha, color palette, encoding direction, horizon.}
+
+\section{Data Products and Artifact Contracts}
+
+\todo{建议篇幅：750--1,000 words，5 段。
+\begin{enumerate}
+  \item P1: 写 unified frame dataset。它包含 observation, masks, action/state arrays, trajectory layers, instruction text, and metadata。
+  \item P2: 写 decoder-image dataset。它给 action decoder 使用，可选择 clean 或 noisy trajectory layers，并保留 clean supervision targets。
+  \item P3: 写 DiT latent dataset。它给 WAN teacher-forcing training 使用，包含 \texttt{meta.json}, \texttt{index.jsonl}, and latent blobs，而不是普通 LeRobot dataset。
+  \item P4: 解释 data contracts 的必要性。不同阶段必须共享 view layout、frame cadence、encoding direction、visual config 和 action horizon，否则 evaluation 会 silent mismatch。
+  \item P5: 写 sharding/validation。Preprocess、decoder images、DiT latents 都是 sharded artifacts，需要检查 shard coverage、sample count 和 preview。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch3-artifact-contracts}{Artifact contracts produced by the data pipeline}{Columns: artifact, producer, consumer, essential fields, validation check. Rows: frame dataset, decoder-image dataset, DiT latent dataset, decoder checkpoint, WAN checkpoint, evaluation report.}
+
+\section{Action Decoder Training}
+
+\todo{建议篇幅：850--1,100 words，6 段。
+\begin{enumerate}
+  \item P1: 说明为什么需要 action decoder。WAN 生成的是 action-labeled images/frames，而 robot controller 需要 continuous EEF actions。
+  \item P2: 写 decoder input/output。输入是 generated/action-labeled wrist images 或 stacked views；输出是 keypoint trajectories and recovered action chunks。
+  \item P3: 写模型结构。当前 RGB decoder 使用 DINOv2 visual backbone 加 query decoder head；描述到 block diagram 层级即可。
+  \item P4: 写 loss terms。Point loss, z-depth loss, pairwise geometry loss, temporal delta loss 分别约束位置、深度、几何结构和时间连续性。
+  \item P5: 写 noisy trajectory training。Decoder 可在 noisy trajectory layer 上训练，但监督 clean points/actions，使其不只机械读取画出来的轨迹。
+  \item P6: 写 validation and metadata。报告 XYZ/RPY/gripper error、debug visualization、geometry sanity，checkpoint 中保存 visual config and encoding direction。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch3-decoder-architecture}{Action decoder architecture}{画 action-labeled frame -> visual backbone -> query decoder -> keypoint trajectory -> geometry fitting -> EEF action。}
+
+\figureplaceholder{fig:ch3-clean-noisy-samples}{Clean and noisy trajectory samples for decoder training}{左侧 clean trajectory overlay，右侧 noisy trajectory overlay，底部标出同一 clean supervision target。}
+
+\tableplaceholder{tab:ch3-decoder-losses}{Action decoder loss terms}{Columns: loss term, supervised quantity, reason, expected failure if absent. Include point loss, z-depth loss, pairwise distance loss, temporal delta loss, gripper loss.}
+
+\section{WAN Teacher-Forcing Policy Training}
+
+\todo{建议篇幅：900--1,200 words，6 段。
+\begin{enumerate}
+  \item P1: 介绍 WAN21 1.3B teacher-forcing setting。模型在给定历史 action-labeled frames and instruction 的情况下学习生成后续 frames/latents；强调没有新增 direct action output head。
+  \item P2: 解释 offline DiT latent training。训练读取预先导出的 latent shards，而不是在线 VAE encoding，提高吞吐和稳定性。
+  \item P3: 写 latent export consistency。Streaming VAE export 的 chunk size 是 speed/memory knob，不应改变 latent 数值或 sample order。
+  \item P4: 写 training objective 的高层含义。无需深入推导，说明模型学习从 noisy latent/flow state 预测正确 future video latent；action supervision 通过 action-labelled pixels 进入同一个 video target。
+  \item P5: 写 distributed training setup。报告 GPU type, batch size, micro batch, checkpoint interval, ACP task and environment。
+  \item P6: 写 checkpoint evaluation。训练中或训练后可对 checkpoint 触发 open-loop evaluation and closed-loop simulation evaluation。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch3-wan-training}{WAN teacher-forcing training with action-labeled frames}{画 history frames + instruction -> WAN -> future action-labeled frames/latents。标出 training target from offline DiT latents，并在图旁边写 ``native video-generation target retained; action appears as pixels''.}
+
+\tableplaceholder{tab:ch3-wan-hyperparameters}{WAN training hyperparameters to report}{Columns: item, value, rationale. Include model version, resolution, frames, batch size, learning rate, checkpoint interval, latent artifact, decoder artifact, and whether a direct action head is used.}
+
+\tableplaceholder{tab:ch3-compute-environment}{Compute environment and software versions}{Columns: component, version or resource, role. Include Python, CUDA, PyTorch, WAN/DiffSynth, LeRobot, GPU type, ACP, WandB.}
+
+\section{Inference and Evaluation Protocol}
+
+\todo{建议篇幅：950--1,200 words，7 段。
+\begin{enumerate}
+  \item P1: 解释 inference loop。Policy server 接收 observation/state history，构造 action-labeled history，调用 WAN 生成 future block，再用 decoder 输出 actions。
+  \item P2: 解释 block protocol。Bootstrap request 使用第一帧和初始 state；normal request 使用 policy frames and dense states；response 返回 action block。
+  \item P3: 解释 temporal alignment。WAN latent cadence、policy frames 和 dense control actions 必须对齐，否则 closed-loop action 会错位。
+  \item P4: 写 open-loop evaluation。Held-out samples 上生成 future frames，decode actions，再比较 XYZ/RPY/gripper/prefix-wise metrics。
+  \item P5: 写 closed-loop simulation evaluation。Evaluator 在 simulation tasks 中调用 policy server，记录 per-task success rate, success count, episode count。
+  \item P6: 写 guidance and seed。CFG guidance scale, random seed, max episode steps and task selection 必须固定或系统 sweep。
+  \item P7: 写 qualitative inspection。保存 generated videos, trajectory overlays, rollout snapshots, and failure examples，因为本文表示本身可视化。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch3-block-protocol}{Policy server block protocol for closed-loop simulation}{画 client/evaluator -> policy server -> WAN generation -> action decoder -> returned dense actions 的时序图。}
+
+\widefigureplaceholder{fig:ch3-evaluation-protocol}{Open-loop and closed-loop evaluation protocols}{左右对比：open-loop held-out data metrics；closed-loop simulation interaction and success rate。}
+
+\tableplaceholder{tab:ch3-eval-metrics}{Evaluation metrics and interpretation}{Columns: metric, measured object, used in, interpretation, limitation. Include XYZ error, rotation error, gripper error, prefix error, success rate, qualitative consistency.}
+
+\tableplaceholder{tab:ch3-sim-tasks}{Closed-loop simulation tasks and success criteria}{Columns: task, instruction, number of runs, max steps, success condition, expected difficulty. Values will be filled after final experiments.}
+
+\section{Reproducibility and Implementation Management}
+
+\todo{建议篇幅：600--850 words，5 段。这个小节体现本科 FYP 的工程完整度，但不要写成 cluster debugging diary。
+\begin{enumerate}
+  \item P1: 解释 commit-pinned long tasks。每个 ACP task 绑定 git commit and \texttt{uv.lock}，避免未提交代码进入 artifact。
+  \item P2: 解释 artifact status and manifest。每个 artifact 保存 request, config, manifest, status, logs and preview，便于复现和审查。
+  \item P3: 写 software stack。只列对复现重要的信息，不展开全部环境故障，也不写作者自用 dashboard。
+  \item P4: 说明为什么写进 thesis。对于本科 FYP，实验结果不仅要有数值，还要说明数据和模型是如何可靠产生的。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch3-repro-checklist}{Reproducibility checklist for the FYP experiments}{Columns: check item, artifact field, reason, pass/fail evidence. Include commit hash, config snapshot, shard coverage, checkpoint metadata, evaluation summary, preview videos.}

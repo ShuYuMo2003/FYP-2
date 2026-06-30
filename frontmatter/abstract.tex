@@ -1,11 +1,18 @@
 \xmumfrontmatterpage{ABSTRACT}
 
-Write a concise summary of the project here. The abstract should briefly
-describe the problem statement, objectives, significance of the research,
-methodology, key findings, and conclusion. Check the latest School/Faculty
-requirement for the final word limit before submission.
+\todo{写作目标：最终 abstract 控制在 150--200 words。PDF guideline 允许不超过 500 words，但 2026-04/20260628 模板写明 not more than 200 words，因此按更严格模板执行。
+
+建议写成 1 个紧凑段落，最多 2 个短段。句子级计划：
+\begin{enumerate}
+  \item S1: 用 embodied AI / robot policy 引出问题：机器人策略需要从视觉、语言和状态中生成连续动作。
+  \item S2: 指出现有 VLA 或 world-model policy 的困难：pretrained video/vision-language model 的原生输出接口通常与 executable robot action 分离，导致 action head / readout / IDM 成为额外瓶颈。
+  \item S3: 写 objective：本文研究 camera-grounded pixel-space action representation as a pretraining-compatible action interface for video-generation robot policy。
+  \item S4: 写 method：把 end-effector action chunks 渲染为 wrist-camera keypoint trajectories，并用 WAN 生成 action-labeled future frames。
+  \item S5: 写 implementation：pipeline 包括 robot demonstration preprocessing, visual action codec, DiT latent export, decoder-image export, action decoder training, WAN training, and evaluation。
+  \item S6: 写 results：最终根据 Chapter 4 补 1 句具体发现，不要现在编数字。
+  \item S7: 写 conclusion and limitation：强调 feasibility and interpretability，同时说明当前实验验证使用一个具体 robot manipulation setting，后续可扩展到更多数据和平台。
+\end{enumerate}}
 
 \vspace{\baselineskip}
 
-\textbf{Keywords:} keyword one; keyword two; keyword three; keyword four; keyword five
-
+\textbf{Keywords:} embodied AI; robot policy; video generation; visual action representation; action decoder

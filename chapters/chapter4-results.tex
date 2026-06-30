@@ -2,36 +2,100 @@
 
 \section{Overview}
 
-This chapter presents the results obtained from the project. Results are
-commonly presented using text, tables, figures, and appropriate analysis.
+\todo{建议篇幅：Chapter 4 约 1,800--2,500 words。本章以结果和可视化为主，深层解释放 Chapter 5。Overview 本节 250--350 words，3 段。
+\begin{enumerate}
+  \item P1: 说明本章报告四类结果：data processing outputs, action decoder performance, WAN open-loop evaluation, closed-loop simulation evaluation。
+  \item P2: 说明 qualitative visualization 是本方法的重要结果，因为 pixel-space action representation 可以直接被人检查，也能判断 video model 是否学会生成 explicit action labels。
+  \item P3: 说明当前写作时所有数字必须来自 final artifacts；未完成处保留 TODO，不要编造结果。
+\end{enumerate}}
 
-\section{Table Example}
+\tableplaceholder{tab:ch4-experiment-summary}{Summary of experiments and result artifacts}{Columns: experiment, artifact/checkpoint, data split, metric, current status, section, relation to pretraining-compatible interface. Fill after final runs.}
 
-Tables are numbered according to the chapter, such as Table~\ref{tab:sample}.
+\section{Data Processing and Artifact Outputs}
 
-\begin{table}[htbp]
-  \centering
-  \caption{Sample Evaluation Results}
-  \label{tab:sample}
-  \begin{tabular}{@{}lcc@{}}
-    \toprule
-    Method & Accuracy & Time (s) \\
-    \midrule
-    Baseline & 0.82 & 12.4 \\
-    Proposed & 0.89 & 10.7 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\todo{建议篇幅：350--500 words，3 段。
+\begin{enumerate}
+  \item P1: 报告 preprocessing artifact。写 frame dataset name, number of episodes/frames/shards, view layout, image size, and whether trajectory layers are generated.
+  \item P2: 报告 decoder-image and DiT latent artifacts。写 artifact paths, shard count, model/foundation used for latent export, and validation status.
+  \item P3: 解释这些结果的意义。它们证明 pipeline 的 input side 可复现，不只是单独训练脚本能跑。
+\end{enumerate}}
 
-\section{Figure Example}
+\tableplaceholder{tab:ch4-artifact-summary}{Generated data and model artifacts}{Columns: artifact type, artifact id/path, producer command, sample count or shard count, validation status, preview available.}
 
-Figures are also numbered according to the chapter, such as
-Figure~\ref{fig:sample}.
+\figureplaceholder{fig:ch4-preprocess-preview}{Preprocessed observation and action-trajectory preview}{后续放真实 preprocessing preview：head view, wrist view, trajectory overlay, metadata snippets。}
 
-\begin{figure}[htbp]
-  \centering
-  \fbox{\rule{0pt}{4cm}\rule{0.75\textwidth}{0pt}}
-  \caption{Sample Figure Placeholder}
-  \label{fig:sample}
-\end{figure}
+\figureplaceholder{fig:ch4-clean-noisy-preview}{Clean and noisy visual trajectory layers}{后续放同一个样本的 clean trajectory and noisy trajectory，对应 decoder robustness discussion。}
 
+\section{Action Decoder Performance}
+
+\todo{建议篇幅：450--650 words，4 段。
+\begin{enumerate}
+  \item P1: 报告 training curve。写 train/validation loss trend, best checkpoint, plateau or instability。
+  \item P2: 报告 action/keypoint error。写 EEF XYZ error, rotation error, gripper error, horizon-wise or prefix-wise error。
+  \item P3: 报告 geometry sanity。写 projection/decoding round-trip error and whether it stays below acceptable threshold。
+  \item P4: 放 qualitative examples。说明 clean/noisy/generated frames 中 decoder prediction 是否贴近 ground truth。
+\end{enumerate}}
+
+\figureplaceholder{fig:ch4-decoder-loss}{Action decoder training and validation loss curves}{后续放 WandB 或 exported curve。至少包含 total loss 和关键 validation metric。}
+
+\tableplaceholder{tab:ch4-decoder-metrics}{Action decoder validation metrics}{Columns: metric, clean validation, noisy validation, generated-frame validation if available, interpretation.}
+
+\figureplaceholder{fig:ch4-decoder-trajectory}{Predicted and ground-truth keypoint trajectories}{后续放多帧 overlay：ground truth trajectory vs decoder prediction；最好包含成功和失败样本各一例。}
+
+\tableplaceholder{tab:ch4-geometry-sanity}{Geometry sanity-check results for the visual action codec}{Columns: check, threshold, observed value, pass/fail, comment. Include projection validity, round-trip pose error, gripper width recovery.}
+
+\section{WAN Open-Loop Evaluation}
+
+\todo{建议篇幅：450--650 words，4 段。
+\begin{enumerate}
+  \item P1: 说明 open-loop protocol。Held-out latent/eval samples 输入 WAN，生成 future action-labeled frames，再用 decoder 读回 actions。
+  \item P2: 报告 quantitative metrics。写 prefix-wise XYZ/RPY/gripper error and aggregate statistics。
+  \item P3: 报告 qualitative video results。说明 generated frames 是否保持 scene continuity, object consistency, trajectory plausibility, and explicit visual action labels。
+  \item P4: 说明 open-loop 的意义和边界。它验证 generation/decoding chain 和 video-generation interface 是否成立，但不能替代 closed-loop interaction。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch4-open-loop-metrics}{Open-loop generated-action evaluation metrics}{Columns: checkpoint, prefix length, XYZ error, rotation error, gripper error, number of samples, notes.}
+
+\figureplaceholder{fig:ch4-prefix-error}{Prefix-wise open-loop action error}{后续放 line plot：prediction horizon/prefix vs XYZ/RPY/gripper error。}
+
+\widefigureplaceholder{fig:ch4-generated-sequences}{Generated frame sequences with decoded action overlays}{后续放 2--4 个代表样本：history frames, generated future frames, generated trajectory label, decoded trajectory/action overlay, ground truth if available。图注强调 WAN 生成的是 action-labelled visual frames，而不是直接 action vector。}
+
+\section{Closed-Loop Simulation Evaluation}
+
+\todo{建议篇幅：500--750 words，4 段。
+\begin{enumerate}
+  \item P1: 说明 simulation setup。写 policy server, evaluator, task list, number of runs, max episode steps, guidance scale and seed。
+  \item P2: 报告 success rates。写 per-task success rate and overall success rate；如果样本少，明确写 small-scale simulation evaluation。
+  \item P3: 如有 baseline，报告 proposed vs baseline；如果没有完整 baseline，写 preliminary comparison or conceptual baseline only。可以把 baseline 分成 direct action head/IDM/readout 的 conceptual comparison，不编造未跑结果。
+  \item P4: 报告 guidance or inference setting。若做 CFG sweep，放 sweep；若只固定一个 setting，解释选择依据并留给 Chapter 5 讨论。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch4-closed-loop-success}{Closed-loop simulation success rates}{Columns: task, instruction, runs, successes, success rate, dominant failure mode, checkpoint.}
+
+\figureplaceholder{fig:ch4-rollout-snapshots}{Success and failure rollout snapshots}{后续放按时间排列的 simulation screenshots：initial state, intermediate action, final state。}
+
+\figureplaceholder{fig:ch4-guidance-sweep}{Guidance-scale sweep or selected inference setting}{如果有 sweep，画 guidance scale vs success/open-loop error；如果没有，放 fixed setting justification chart。}
+
+\tableplaceholder{tab:ch4-eval-config}{Closed-loop evaluation configuration}{Columns: item, value, reason. Include checkpoint, decoder, guidance scale, seed, tasks, runs, max steps, action horizon.}
+
+\section{Qualitative Case Studies}
+
+\todo{建议篇幅：300--450 words，4 段。
+\begin{enumerate}
+  \item P1: 写成功案例 1。描述 observation, generated trajectory, decoded action, final task outcome。
+  \item P2: 写成功案例 2 或 borderline case。强调 pixel-space trajectory 如何帮助目视判断 policy 是否合理。
+  \item P3: 写失败案例 1。例子可以是 trajectory drift, wrong depth, object mismatch, or action decoder error。
+  \item P4: 写失败案例 2 并总结 failure categories。不要把失败藏起来；失败案例是 Chapter 5 分析的入口。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch4-success-case}{Successful qualitative rollout case study}{后续放一个完整成功样本的 frame strip，标出 generated visual action and decoded robot motion。}
+
+\widefigureplaceholder{fig:ch4-failure-case}{Failure qualitative rollout case study}{后续放一个失败样本的 frame strip，标出 drift/depth/action-decoder mismatch。}
+
+\tableplaceholder{tab:ch4-failure-categories}{Observed failure modes in qualitative evaluation}{Columns: failure type, visual symptom, likely source, example figure, related discussion section.}
+
+\section{Summary of Results}
+
+\todo{建议篇幅：200--300 words，1 段。
+
+P1: 用一个段落总结 observation: data artifacts 是否成功生成；decoder 是否能恢复 actions；WAN open-loop 是否生成合理 action-labeled frames；closed-loop 是否显示初步可行性或暴露主要限制。最后一句引出 Chapter 5: the next chapter interprets these results and explains the gap between generated visual action labels and robust closed-loop execution.}

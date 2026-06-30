@@ -1,20 +1,116 @@
 \chapter{LITERATURE REVIEW}
 
-\section{Overview}
+\section{Overview of the Literature Review}
 
-The literature review should provide a critical and comprehensive account of
-published work relevant to the research topic. It should explain the theories,
-models, materials, and techniques that inform this project, and should show how
-this study fits within the existing body of knowledge.
+\todo{建议篇幅：Chapter 2 总体 4,800--5,600 words。Chapter 2 要比 conference paper 的 related work 更基础、更教学化，但仍然要 critical，不要写成百科。新主线：pretraining-compatible output interface for video-generation robot policies。
+\begin{enumerate}
+  \item P1: 说明本章目的：为 Optical Action Encoding 建立必要背景，而不是简单罗列论文。
+  \item P2: 说明阅读路径：embodied AI and robot policy -> Transformer/ViT/diffusion backbones -> pretraining/post-training output interface -> VLA action interfaces -> video world models -> visual action representation。
+  \item P3: 说明最后会收束到 research gap：现有方法通常让 video pretraining 和 executable action output 之间存在额外 action interface，而本文尝试把 action 变成 video model 可生成的 camera-grounded pixel-space signal。
+\end{enumerate}}
 
-\section{Related Work}
+\tableplaceholder{tab:ch2-terminology}{Key terminology used in the thesis}{Columns: term, simple definition, why it matters in this thesis. Terms: embodied AI, robot policy, VLA, world model, video pretraining, post-training, output interface, IDM, EEF, wrist camera, open-loop evaluation, closed-loop evaluation, artifact.}
 
-Use APA-style citations through \texttt{biblatex}. For example, a narrative
-citation can be written as \textcite{bordwell2000film}, while a parenthetical
-citation can be written as \parencite{barrance2022continuity}.
+\section{Embodied AI and Robot Policy Learning}
 
-\section{Research Gap}
+\todo{建议篇幅：700--900 words，5 段。这里从基础概念讲起，不假定 reader 已经了解 robotics。
+\begin{enumerate}
+  \item P1: 解释 embodied AI。智能体不是只处理静态数据，而是在环境中通过 perception, reasoning, and action 形成反馈循环。
+  \item P2: 解释 robot policy。Policy 可以被看作从 observation/state/instruction 到 action 的函数，action 可包括 joint command、end-effector pose、gripper state。
+  \item P3: 解释 vision-based manipulation。机器人需要从 head camera 和 wrist camera 中获得物体位置、手眼关系和局部接触信息。
+  \item P4: 解释 open-loop 与 closed-loop。Open-loop 便于隔离 prediction error；closed-loop 才能检验动作执行后环境如何变化。
+  \item P5: 过渡到 action interface。机器人 policy 的核心困难不只是“看懂图像”，还包括把视觉/语言条件转换成可执行 continuous action。
+\end{enumerate}}
 
-Summarize the limitations of existing studies and identify the gap addressed by
-this project.
+\figureplaceholder{fig:ch2-perception-action-loop}{Perception-action loop in embodied robot policy learning}{画一个闭环：environment -> camera observation and robot state -> policy with language instruction -> robot action -> changed environment。标出 open-loop evaluation 只检查 prediction，closed-loop evaluation 检查 feedback。}
 
+\tableplaceholder{tab:ch2-open-closed}{Comparison between open-loop and closed-loop evaluation}{Columns: evaluation type, input, output, strength, limitation, example metric. Rows: open-loop action error, generated video inspection, closed-loop simulation success.}
+
+\section{Backbone Concepts: Transformers, ViTs, and Diffusion Video Models}
+
+\todo{建议篇幅：800--1,000 words，5 段。这个小节借鉴 sample 里解释 ViT/Transformer 的写法，帮助本科老师理解后面的 VLA 和 WAN。
+\begin{enumerate}
+  \item P1: 简要解释 Transformer。重点是 self-attention 允许 token 之间建模长距离关系；只解释 query/key/value 和 attention map 的直观意义。
+  \item P2: 解释 Vision Transformer。图像被切成 patches，每个 patch 变成 token；因此 Transformer 可以处理视觉输入，并为 VLA 和 video model 提供 backbone。
+  \item P3: 解释 diffusion/flow-matching generation。模型从噪声或 noisy latent 逐步预测更干净的视频 latent，学习的是数据分布而不是单步分类。
+  \item P4: 解释 DiT/video-generation backbone。DiT 把 diffusion 与 Transformer 结合，WAN 类模型进一步面向 video sequence 建模时序和空间关系。
+  \item P5: 连接到本文。本文不重新发明 backbone，而是在强视频先验上设计一个 action interface，使 generated frames 同时包含未来视觉状态和动作信号。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch2-transformer-vit}{Intuitive illustration of Transformer attention and Vision Transformer patch tokens}{左侧画 query/key/value self-attention 如何连接 tokens；右侧画一张图像被切成 patches，再进入 ViT encoder。说明这是为了理解 VLA/WAN backbone，不需要详细数学推导。}
+
+\widefigureplaceholder{fig:ch2-diffusion-denoising}{Diffusion denoising from noise to a clean image}{画经典 diffusion 科普图：pure noise image -> partially denoised image -> cleaner image -> final clean image。可在下方用小箭头标出 reverse denoising process，并用淡色箭头说明 training learns the reverse of adding noise。}
+
+\tableplaceholder{tab:ch2-backbone-concepts}{Backbone concepts required for later chapters}{Columns: concept, plain-language explanation, where it appears later. Rows: Transformer, ViT, diffusion model, DiT, WAN, latent representation, teacher forcing.}
+
+\section{Pretraining-Compatible Output Interfaces}
+
+\todo{建议篇幅：650--850 words，5 段。这是新主线的理论动机，需要写得优雅。
+\begin{enumerate}
+  \item P1: 解释 pretraining/post-training 的基本思想。Pretraining 学到通用能力，post-training 把能力适配到下游任务。
+  \item P2: 用 VLM 类比。很多 VLM 在 visual-language pretraining 后，instruction/post-training 仍然主要生成 language tokens；output interface 没有彻底改变，因此能力迁移比较自然。
+  \item P3: 转到 embodied learning。Video model 在 web video 中学到 scene dynamics, object motion, temporal continuity, physical priors，但 robot policy 需要 continuous actions。
+  \item P4: 分析 interface mismatch。Action head/readout token/IDM 可以工作，但它们把最终监督转到 video model 原生 video/pixel/latent 生成接口之外。
+  \item P5: 引出本文。理想 interface 是让 video model 继续生成 visual content，同时让 visual content 显式携带可解码 action。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch2-pretrain-interface}{Pretraining and post-training output interfaces in VLMs and robot policies}{画上下两行对比。上行 VLM：image/text pretraining -> instruction tuning -> language-token output，输出接口保持一致。下行 video robot policy：web video pretraining -> robot fine-tuning，分叉为 action head/IDM vs Optical Action Encoding。突出 ours 保持 video-generation output，只是在 frames 中加入 action-labelled pixels。}
+
+\tableplaceholder{tab:ch2-interface-comparison}{Comparison of output interfaces after pretraining}{Columns: model family, pretraining output, post-training output, interface continuity, implication. Rows: language model, VLM, VLA action head, video world model plus IDM, Optical Action Encoding.}
+
+\section{Vision-Language-Action Models and Action Representation}
+
+\todo{建议篇幅：800--1,000 words，5--6 段。
+\begin{enumerate}
+  \item P1: 介绍 VLA 基本范式：用 visual/language backbone 接收 images and instruction，再输出 robot action。
+  \item P2: 写 discrete action token 路线。说明 continuous action 可被离散化成 tokens，优点是适配 language-model decoding，缺点是量化和动作接口设计复杂。
+  \item P3: 写 continuous action head / diffusion action head 路线。说明这种方式保留连续动作，但通常是额外输出分支。
+  \item P4: 从 pretraining interface 角度分析。VLA 复用 visual-language backbone，但 robot action output 往往不是原始语言/视觉生成目标。
+  \item P5: 写 visual trajectory 或 waypoint 作为中间表示的相关方向。强调很多方法把 trajectory 当 input condition 或 plan，而不是由 video model 生成的 action output。
+  \item P6: 过渡到本文：VLA 强在 language-conditioned action prediction，但本文关注是否能把 action 表示为 video model 更自然处理的 visual signal。
+\end{enumerate}}
+
+\tableplaceholder{tab:ch2-action-representation-taxonomy}{Taxonomy of robot action representations}{Columns: representation, example form, benefit, limitation, relation to this thesis. Rows: continuous vector, discrete token, diffusion action, latent action, waypoint trajectory, pixel-space visual action.}
+
+\section{Video Generation Models and World Models for Control}
+
+\todo{建议篇幅：900--1,150 words，6 段。
+\begin{enumerate}
+  \item P1: 介绍 world model 思想。模型学习预测 future observations，因此可能掌握 object motion and interaction priors。
+  \item P2: 写 video prediction for robotics。预测未来帧可以辅助 planning、policy learning 或生成更多训练信号。
+  \item P3: 写 world model plus IDM 路线。先生成未来帧，再用 inverse dynamics model 从 frame transition 读出 action。
+  \item P4: 分析 IDM/readout 的优缺点。优点是复用视频先验，缺点是 action readout 与 video generation 分离，可能出现 generated-frame gap。
+  \item P5: 写 representation readout 路线。有些方法从 latent/features 而不是 pixels 读动作，但仍需要额外 action module。
+  \item P6: 过渡到本文：如果 action 本身能作为 pixel-space signal 被生成，video prediction 和 action output 之间的接口会更接近 video model 原生能力。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch2-policy-paradigms}{Comparison of three robot-policy paradigms}{分成三小图并排：左图 VLA，包含 image/language encoder -> multimodal backbone -> action head or action tokens；中图 world model + IDM，包含 observation history -> future video -> inverse dynamics model -> action；右图 ours，包含 observation/action-labeled history -> WAN generated action-labeled frames -> action decoder -> executable action。}
+
+\tableplaceholder{tab:ch2-world-model-methods}{Comparison of world-model policy families}{Columns: method family, generated target, action readout, pretraining-interface continuity, interpretability, main limitation. Include video-only world model, latent world model, IDM readout, feature readout, pixel-space visual action.}
+
+\section{Visual and Pixel-Space Action Representations}
+
+\todo{建议篇幅：1,000--1,300 words，7 段。本节是 Chapter 2 的核心之一，要写清楚“为什么 action 可以画出来”。
+\begin{enumerate}
+  \item P1: 解释 action visualization 的直觉。机械臂末端执行器运动在相机中会形成可投影轨迹，特别是 wrist camera 与 gripper motion 高度相关。
+  \item P2: 解释 camera-grounded keypoint trajectory。把 EEF 或 gripper keypoints 从 robot frame 转到 camera frame，再投影到 image plane。
+  \item P3: 写这种表示的优势：可解释、可视化、和 video model 输入输出空间一致；future heterogeneous learning 只是潜在扩展，不作为本文主证据。
+  \item P4: 对比 action image / action heatmap / trajectory-conditioned policy 类工作。说明它们证明 action-as-visual-signal 可行，但很多仍依赖 fixed camera、separate action view、或不直接作为 video model 的 generated output。
+  \item P5: 写本文差异：trajectory 被渲染到 wrist-view pixel space，与 observation 处于同一 stacked frame 中；decoder 从生成帧读回 continuous action。
+  \item P6: 写限制：依赖 camera calibration、projection validity、depth/radius encoding，生成模型可能画出视觉合理但几何偏移的 label。
+  \item P7: 过渡到 methodology：这些优势和风险决定 Chapter 3 必须详细介绍 codec、decoder robustness 和 evaluation protocol。
+\end{enumerate}}
+
+\widefigureplaceholder{fig:ch2-camera-projection}{Projection from 3D end-effector keypoints to wrist-camera pixels}{画 robot/world frame、wrist camera frame、image plane，以及 left tip/right tip/third point 三个 keypoints 被投影为 2D trajectory。}
+
+\tableplaceholder{tab:ch2-pixel-action-risks}{Advantages and risks of pixel-space action representation}{Columns: representation or property, example form, advantage, risk, safeguard in this thesis. Include continuous vector, latent action token, pixel-space trajectory overlay, geometry grounding, calibration dependency, generated-frame gap.}
+
+\section{Summary and Research Gap}
+
+\todo{建议篇幅：500--700 words，4 段。
+\begin{enumerate}
+  \item P1: 总结 VLM 类比：pretraining 能力更容易迁移到保留原生 output interface 的 post-training 任务。
+  \item P2: 总结 VLA/action-head 路线：action prediction 能力强，但 action output 常是额外 head/token/interface。
+  \item P3: 总结 world model 路线：video prior 强，但 action 常由 IDM/readout 单独恢复，generated visual future 和 executable action 之间存在 gap。
+  \item P4: 明确 research gap：需要一个可复现 pipeline 来验证 camera-grounded pixel-space action representation 是否能作为 video-generation robot policy 的 pretraining-compatible action interface，并分析其 open-loop、closed-loop 和 robustness 表现。
+\end{enumerate}}

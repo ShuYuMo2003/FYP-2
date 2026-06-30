@@ -1,6 +1,57 @@
-\chapter{SUPPLEMENTARY MATERIALS}
+\chapter{SUPPLEMENTARY IMPLEMENTATION DETAILS}
 
-Appendices may include research instruments, additional data, long tables,
-questionnaires, maps, screenshots, or other material that supports the thesis
-but is too detailed for the main text.
+\todo{附录目标：把会打断正文阅读、但对复现和本科 FYP 完整性有帮助的材料放这里。正文只放必要图表，完整配置、额外截图和 artifact 示例放附录。}
 
+\section{Codebase Structure}
+
+\todo{建议写 2--3 段。
+\begin{enumerate}
+  \item P1: 简述 \path{world_policy} codebase 的总体组织方式，以及 thesis 中哪些章节依赖这些模块。
+  \item P2: 列主要模块：\path{action_codec}, \path{data/preprocessing}, \path{data/latent_encoding}, \path{action_decoder}, \path{wan}, \path{runtime}。
+  \item P3: 说明附录只用于复现定位，不需要像 Chapter 3 那样解释方法原理。
+\end{enumerate}}
+
+\tableplaceholder{tab:app-codebase-structure}{Supplementary codebase structure}{Columns: path, responsibility, key input, key output, related chapter.}
+
+\section{ACP Task Templates}
+
+\todo{建议写 2 段。
+\begin{enumerate}
+  \item P1: 说明 ACP templates 如何把 preprocessing, latent export, decoder training, WAN training and evaluation 组织成长任务。
+  \item P2: 列出关键脚本：\path{1_preprocess.sh}, \path{2.1_decoder_images.sh}, \path{2.2_dit_latents.sh}, \path{3.2_action_decoder_train_rgb.sh}, \path{4.1_wan_train_1_3b.sh}, \path{5.1_wan_eval.sh}, \path{6.3_wan_sim_eval_single_task.sh}。
+\end{enumerate}}
+
+\tableplaceholder{tab:app-acp-templates}{ACP task templates used in the project}{Columns: task template, purpose, required artifact, produced artifact, expected runtime notes.}
+
+\section{Configuration Tables}
+
+\todo{建议放正文 Table 3.x 放不下的完整参数。
+\begin{enumerate}
+  \item P1: Preprocessing full configuration，包括 views, size, horizon, visual codec options。
+  \item P2: Action decoder full configuration，包括 backbone, losses, optimizer, batch size, training data。
+  \item P3: WAN training and evaluation full configuration，包括 model, latent artifact, guidance scale, checkpoint, task settings。
+\end{enumerate}}
+
+\tableplaceholder{tab:app-preprocess-full-config}{Full preprocessing configuration}{Columns: config key, value, source file, comment.}
+
+\tableplaceholder{tab:app-decoder-full-config}{Full action-decoder training configuration}{Columns: config key, value, source file, comment.}
+
+\tableplaceholder{tab:app-wan-full-config}{Full WAN training and evaluation configuration}{Columns: config key, value, source file, comment.}
+
+\section{Additional Qualitative Results}
+
+\todo{建议写 1 段说明：正文只放代表性 examples，附录放更多 generated frames, trajectory overlays, and rollout snapshots。}
+
+\widefigureplaceholder{fig:app-additional-generated-frames}{Additional generated frame sequences}{后续放更多 WAN generated frame strips and decoded action overlays。}
+
+\widefigureplaceholder{fig:app-additional-rollouts}{Additional closed-loop rollout snapshots}{后续放更多 simulation success/failure rollouts。}
+
+\section{Artifact Manifest Examples}
+
+\todo{建议写 1--2 段。
+\begin{enumerate}
+  \item P1: 放一个完整 artifact manifest/status example，说明 experiment table 的数字如何追溯到具体 artifact。
+  \item P2: 只保留和复现直接相关的字段，例如 commit hash、config path、sample count、status、output paths；不放作者自用 dashboard。
+\end{enumerate}}
+
+\figureplaceholder{fig:app-artifact-manifest}{Example artifact manifest and status file}{后续放 manifest/status 截图或简化排版，显示 config hash, commit, sample count, status, output paths。}
